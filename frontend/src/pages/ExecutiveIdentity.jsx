@@ -57,15 +57,12 @@ export default function ExecutiveIdentity({ profile, onSave, onToast }) {
       });
 
       // 2. 更新本地状态并退出编辑
-      if (onSave) onSave(form);
+      if (onSave && !(await onSave(form))) return;
       setEditing(false);
       if (onToast) onToast('Executive profile synced to Agent successfully');
     } catch (err) {
       console.error('Failed to sync to backend:', err);
-      // 如果后端接口暂时还没写好，依然更新本地状态，保证前台和钞票雨不崩
-      if (onSave) onSave(form);
-      setEditing(false);
-      if (onToast) onToast('Profile saved locally');
+      if (onToast) onToast(err.message || 'Could not save profile. Please try again.');
     } finally {
       setSaving(false);
     }

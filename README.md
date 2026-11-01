@@ -1,10 +1,9 @@
 # Founders-Only
 
-Luxury business club dashboard with a React frontend and a Python FastAPI backend.
-User accounts and account data are stored in a local SQLite database. Passwords
-are bcrypt hashed, and the API uses an HttpOnly JWT cookie for sessions.
+React/Vite frontend with a FastAPI backend, SQLite accounts, OpenAI reply drafts,
+and Agentboxd inbox access. Start from `frontend/`; the root `src/` is a legacy demo.
 
-## Requirements
+## macOS
 
 - Node.js 20.19+ or 22.12+
 - Python 3.10+
@@ -31,62 +30,45 @@ Install the frontend dependencies:
 
 ```powershell
 cd frontend
-npm install
+npm ci
 ```
 
-Commit both `frontend\package-lock.json` and the backend requirements file when
-updating dependencies so the whole team gets the same versions.
+Configure `backend/.env` locally: JWT_SECRET (32+ random characters), OPENAI_API_KEY,
+OPENAI_MODEL, AGENTBOXD_API_KEY, AGENTBOXD_INBOX_ID, AGENTBOXD_ALLOWED_EMAIL.
+Never commit `.env` or the database. Register using AGENTBOXD_ALLOWED_EMAIL for inbox access.
 
-## Run in development
-
-Use two terminals from the repository root.
-
-Terminal 1, start the API:
-
-```powershell
-.venv\Scripts\python.exe backend\app.py
+Terminal 1, from project root:
+```bash
+.venv/bin/python backend/app.py
 ```
-
-The API listens on `http://127.0.0.1:4000` and creates
-`backend/data/founders_only.sqlite3` automatically.
-
-Terminal 2, start the frontend:
-
-```powershell
+Terminal 2:
+```bash
 cd frontend
 npm run dev
 ```
+Open http://localhost:3001. The frontend proxies `/api` to http://127.0.0.1:4000.
 
-Open `http://localhost:3001`. Vite forwards `/api` requests to the API on port
-4000. Sign up with an email and password, then the Dashboard opens. Logout
-returns to the Login page.
-
-## Production frontend build
+## Windows PowerShell
 
 ```powershell
+py -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
+Copy-Item backend\.env.example backend\.env
 cd frontend
-npm run build
+npm ci
 ```
+Terminal 1 (root): `.\.venv\Scripts\python.exe backend\app.py`
+Terminal 2 (`frontend`): `npm run dev`
 
-The generated static files are placed in `frontend/dist/`.
+## Integration notes
 
-## Project layout
+Dashboard and Executive Identity persist the three new personas per account.
+AI Reply Studio supports the saved persona plus the previous styles. Replies are
+only sent after confirmation. Samples are labeled and cannot be sent.
+Automatic replies are disabled by default; `ENABLE_AUTO_REPLY=true` explicitly
+starts the worker using the configured inbox owner's saved profile. Do not enable
+this while testing drafts. The standalone worker uses the same opt-in.
+Schedule delivery is not connected: the provider module lacks `send_email`;
+the endpoint reports this instead of claiming success.
 
-```text
-backend/
-  app.py                 FastAPI routes, JWT sessions, and SQLite access
-  requirements.txt       Python dependencies
-  .env.example           Local backend configuration template
-frontend/
-  src/
-    components/          Reusable dashboard components
-    data/                Default dashboard content
-    lib/                 API client
-    pages/               Login, dashboard, inbox, and settings pages
-    styles/              Global and component styles
-  public/assets/         Dashboard imagery
-```
-
-The Dashboard's Canadian $100 note animation uses the profile's **Personal net
-worth** to determine the number of notes, capped at 24. The notes are smaller
-and fall faster; reduced-motion settings disable the animation.
+Build: `cd frontend && npm run build`.

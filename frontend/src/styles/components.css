@@ -108,6 +108,7 @@
 .money-rain { position: fixed; z-index: 15; inset: 67px 0 0 248px; overflow: hidden; pointer-events: none; contain: strict; }
 .money-note { position: absolute; top: -60px; width: clamp(32px, 4vw, 52px); aspect-ratio: 2.24 / 1; opacity: 0; filter: drop-shadow(0 4px 6px rgba(12,9,5,.35)); will-change: transform, opacity; animation: money-fall var(--duration, 4.5s) linear var(--delay, 0s) infinite; }
 .money-note img { width: 100%; height: 100%; object-fit: cover; transform: scale(1.28); }
+.email-connection-notice { margin: 0 0 18px; border: 1px solid #6b5736; padding: 11px 14px; color: #d7c59d; background: #282319; font-size: 12px; }
 @keyframes money-fall { 0% { transform: translate3d(0, -12vh, 0) rotate(var(--tilt, -12deg)); opacity: 0; } 8% { opacity: .46; } 80% { opacity: .4; } 100% { transform: translate3d(var(--drift, 35px), 112vh, 0) rotate(var(--spin, 240deg)); opacity: 0; } }
 
 .identity-layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 20px; }

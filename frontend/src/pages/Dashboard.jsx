@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Crown, Sparkles, Send, Copy, Check, Shield, Flame, Activity } from 'lucide-react';
 import MoneyRain from '../components/MoneyRain.jsx';
 import Button from '../components/Button.jsx';
@@ -10,12 +10,14 @@ const PERSONA_PRESETS = [
   { id: 'bureaucrat', name: 'The Bureaucratic Black Hole', tag: 'FORM-404B ENFORCER', desc: 'Turns every incoming message into a compliance case and returns it with an official notice.' },
 ];
 
-export default function Dashboard({ profile = {}, onToast }) {
+export default function Dashboard({ profile = {}, onToast, onSaveProfile }) {
   const [copied, setCopied] = useState(false);
   const [targetEmail, setTargetEmail] = useState('');
   const [scheduleType, setScheduleType] = useState('hyper_elite');
   const [sendingSchedule, setSendingSchedule] = useState(false);
-  const [currentPersona, setCurrentPersona] = useState('arrogant_founder');
+  const [currentPersona, setCurrentPersona] = useState(profile.persona_preset || 'arrogant_founder');
+
+  useEffect(() => setCurrentPersona(profile.persona_preset || 'arrogant_founder'), [profile.persona_preset]);
 
   // Agentboxd 分配给你的核心邮箱
   const AGENTBOXD_EMAIL = 'foundersonly@homingbox.net';
@@ -33,9 +35,11 @@ export default function Dashboard({ profile = {}, onToast }) {
           netWorth: profile.netWorth || '$1.24B'
         }),
       });
+      await onSaveProfile?.({ ...profile, persona_preset: presetId });
       if (onToast) onToast(`Dossier Synced: Switched to ${presetId.toUpperCase()}`);
     } catch {
-      if (onToast) onToast(`Persona updated locally`);
+      setCurrentPersona(profile.persona_preset || 'arrogant_founder');
+      if (onToast) onToast('Could not save persona. Please try again.');
     }
   }
 
@@ -43,7 +47,7 @@ export default function Dashboard({ profile = {}, onToast }) {
   async function handleSendSchedule(e) {
     e.preventDefault();
     if (!targetEmail) return onToast?.('Please enter a target recipient email');
-    
+
     setSendingSchedule(true);
     try {
       await apiRequest('/api/send-larp-schedule', {
@@ -57,7 +61,7 @@ export default function Dashboard({ profile = {}, onToast }) {
       if (onToast) onToast(`Executive schedule dispatched via Agentboxd to ${targetEmail}`);
       setTargetEmail('');
     } catch (err) {
-      if (onToast) onToast(`Failed to dispatch schedule (Check backend status)`);
+      if (onToast) onToast(err.message);
     } finally {
       setSendingSchedule(false);
     }

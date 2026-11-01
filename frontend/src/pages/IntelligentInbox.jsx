@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Mail, Search, Sparkles, Star, Copy, Check, ShieldCheck, RefreshCw, AlertCircle } from 'lucide-react';
+import { NavLink } from 'react-router-dom';
 import { apiRequest } from '../lib/api';
 
 // 预设默认的演示拦截邮件（后端离线时的保底）
@@ -42,6 +43,7 @@ export default function IntelligentInbox({ selectedEmail, onSelectEmail, onToast
   const [emails, setEmails] = useState(DEFAULT_INTERCEPTED_EMAILS);
   const [copied, setCopied] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [connectionError, setConnectionError] = useState('Loading inbox…');
 
   // 赞助商 Agentboxd 分配给你们的专属截获邮箱
   const AGENT_EMAIL = "foundersonly@homingbox.net";
@@ -51,11 +53,14 @@ export default function IntelligentInbox({ selectedEmail, onSelectEmail, onToast
     setRefreshing(true);
     try {
       const data = await apiRequest('/api/messages/inbox');
-      if (data && Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data)) {
         setEmails(data);
+        onSelectEmail?.(null);
+        setConnectionError('');
       }
       if (onToast) onToast('Inbox synchronized with Agentboxd');
-    } catch {
+    } catch (error) {
+      setConnectionError(error.message);
       // 后端未连通或没有新邮件时，继续保留演示数据
       if (onToast) onToast('Loaded local intelligence dossier');
     } finally {
@@ -89,14 +94,15 @@ export default function IntelligentInbox({ selectedEmail, onSelectEmail, onToast
 
   return (
     <>
+      {connectionError && <p role="status">{connectionError} Showing sample correspondence.</p>}
       <div className="page-intro">
         <div>
           <div className="eyebrow">AUTONOMOUS INTERCEPTION PROTOCOL</div>
           <h1>Intelligent inbox</h1>
           <p>Every rejection intercepted. Every denial overruled with executive leverage.</p>
         </div>
-        <button 
-          className="date-button" 
+        <button
+          className="date-button"
           onClick={fetchLiveEmails}
           style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
         >
@@ -105,6 +111,7 @@ export default function IntelligentInbox({ selectedEmail, onSelectEmail, onToast
         </button>
       </div>
 
+      <NavLink className="button button-gold" to="/studio">Draft a reply in AI Studio</NavLink>
       {/* 顶部专属 Agentboxd 邮箱横幅（路演评委互动核心） */}
       <div style={{
         background: 'rgba(189, 155, 92, 0.04)',
@@ -139,7 +146,7 @@ export default function IntelligentInbox({ selectedEmail, onSelectEmail, onToast
           </div>
         </div>
 
-        <button 
+        <button
           onClick={copyAgentAddress}
           style={{
             background: '#1e293b',
@@ -301,7 +308,7 @@ export default function IntelligentInbox({ selectedEmail, onSelectEmail, onToast
               {active?.agentReply || (
                 <div style={{ color: '#94a3b8', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <AlertCircle size={15} />
-                  Agent has intercepted this correspondence. Reply generated and dispatched through Agentboxd.
+                  No sent reply is recorded here. Open AI Studio to prepare a draft.
                 </div>
               )}
             </div>

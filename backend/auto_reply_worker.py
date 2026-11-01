@@ -46,7 +46,8 @@ def run_auto_reply_loop():
     )
     print("👂 监听已就绪，当前只等待【未来刚刚发进来的新邮件】...\n")
   except Exception as e:
-    print(f"⚠️ 基准扫描失败（请检查网络或凭证）: {e}\n")
+    print(f"Baseline failed: {type(e).__name__}; automatic sending stopped.")
+    return
 
   # 2. 正式轮询循环：只处理未来到达的新邮件
   while True:
@@ -76,10 +77,20 @@ def run_auto_reply_loop():
 
         # 调用 AI 生成傲慢反击
         print("🤖 [AI 正在组织措辞生成回怼内容...]")
+        import sqlite3, json
+        owner = os.environ.get("AGENTBOXD_ALLOWED_EMAIL", "").strip().lower()
+        if not owner:
+          raise RuntimeError("AGENTBOXD_ALLOWED_EMAIL must be configured")
+        db_path = Path(os.environ.get("DATABASE_PATH", BASE_DIR / "data" / "founders_only.sqlite3"))
+        if not db_path.is_absolute():
+          db_path = BASE_DIR.parent / db_path
+        with sqlite3.connect(db_path) as db:
+          row = db.execute("SELECT a.profile FROM account_data a JOIN users u ON u._id=a.userId WHERE lower(u.email)=?", (owner,)).fetchone()
+        if not row:
+          raise RuntimeError("The configured inbox owner must register and save a profile first")
         reply_content = generate_reply(
             email=f"Subject: {subject}\n\n{body}",
-            identity=DEFAULT_IDENTITY,
-            mode=CURRENT_MODE,
+            identity_data=json.loads(row[0]),
         )
 
         print("\n📝 [生成的回信]:")
@@ -100,4 +111,7 @@ def run_auto_reply_loop():
 
 
 if __name__ == "__main__":
-  run_auto_reply_loop()
+  if os.environ.get("ENABLE_AUTO_REPLY", "false").lower() == "true":
+    run_auto_reply_loop()
+  else:
+    print("Automatic sending is disabled. Set ENABLE_AUTO_REPLY=true to opt in.")
