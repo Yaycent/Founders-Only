@@ -2,11 +2,10 @@ import { NavLink } from 'react-router-dom';
 import { Activity, ArrowRight, ArrowUpRight, CalendarDays, Clock3, Mail, TrendingUp } from 'lucide-react';
 import MoneyRain from '../components/MoneyRain.jsx';
 import StatCard from '../components/StatCard.jsx';
-import { mockEmails } from '../data/emails.js';
 import { briefing } from '../data/briefing.js';
 
-export default function Dashboard({ profile, onSelectEmail }) {
-  const recent = mockEmails.slice(0, 4);
+export default function Dashboard({ profile, emails = [], onSelectEmail }) {
+  const recent = emails.slice(0, 4);
   return (
     <>
       <MoneyRain netWorth={profile.netWorth} />

@@ -108,6 +108,24 @@ class AccountUpdate(BaseModel):
     preferences: dict | None = None
 
 
+class AIReplyRequest(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    subject: str = Field(min_length=1, max_length=500)
+    email_body: str = Field(min_length=1, max_length=12000)
+    identity: dict[str, str] = Field(default_factory=dict)
+    mode: str = Field(default="unicorn_gatekeeper", max_length=50)
+    additional_direction: str = Field(default="", max_length=300)
+
+
+class SendReplyRequest(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    email_id: str = Field(min_length=1, max_length=300)
+    reply: str = Field(min_length=1, max_length=12000)
+    confirmed: bool = False
+
+
 def public_user(row: sqlite3.Row) -> dict:
     return {"id": row["_id"], "email": row["email"], "createdAt": row["createdAt"]}
 
@@ -276,6 +294,95 @@ def update_account(update: AccountUpdate, user_id: str = Depends(current_user_id
             "SELECT profile,preferences FROM account_data WHERE userId=?", (user_id,)
         ).fetchone()
     return {"profile": json.loads(account["profile"]), "preferences": json.loads(account["preferences"])}
+
+
+def require_agentboxd_owner(user_id: str) -> None:
+    allowed_email = os.environ.get("AGENTBOXD_ALLOWED_EMAIL", "").strip().lower()
+    if not allowed_email:
+        raise HTTPException(status_code=503, detail="Agentboxd inbox access is not configured.")
+
+    with database_connection() as connection:
+        user = connection.execute("SELECT email FROM users WHERE _id=?", (user_id,)).fetchone()
+    if user is None:
+        raise HTTPException(status_code=401, detail="This account is no longer available.")
+    if user["email"].lower() != allowed_email:
+        raise HTTPException(status_code=403, detail="This account is not authorized to access the connected inbox.")
+
+
+@app.get("/api/emails")
+def get_inbox_emails(user_id: str = Depends(current_user_id)):
+    require_agentboxd_owner(user_id)
+    if __package__:
+        from .agentboxd import AgentboxdConfigurationError, get_emails
+    else:
+        from agentboxd import AgentboxdConfigurationError, get_emails
+    try:
+        return {"emails": get_emails()}
+    except AgentboxdConfigurationError as error:
+        raise HTTPException(status_code=503, detail="Agentboxd is not configured in backend/.env.") from error
+    except Exception as error:
+        raise HTTPException(status_code=502, detail="Could not retrieve inbox messages from Agentboxd.") from error
+
+
+@app.post("/api/send-reply")
+def send_inbox_reply(request: SendReplyRequest, user_id: str = Depends(current_user_id)):
+    require_agentboxd_owner(user_id)
+    if not request.confirmed:
+        raise HTTPException(status_code=400, detail="Confirm before sending this email reply.")
+    if __package__:
+        from .agentboxd import AgentboxdConfigurationError, reply_to_email
+    else:
+        from agentboxd import AgentboxdConfigurationError, reply_to_email
+    try:
+        result = reply_to_email(request.email_id, request.reply.strip())
+    except AgentboxdConfigurationError as error:
+        raise HTTPException(status_code=503, detail="Agentboxd is not configured in backend/.env.") from error
+    except Exception as error:
+        raise HTTPException(status_code=502, detail="Agentboxd could not send this reply.") from error
+    return {"result": result}
+
+
+@app.post("/api/generate-reply")
+def generate_ai_reply(request: AIReplyRequest, user_id: str = Depends(current_user_id)):
+    # The endpoint is authenticated; each user's own profile is the only identity data used.
+    with database_connection() as connection:
+        account = connection.execute(
+            "SELECT profile FROM account_data WHERE userId=?", (user_id,)
+        ).fetchone()
+    if account is None:
+        raise HTTPException(status_code=404, detail="Account data was not found.")
+
+    identity = json.loads(account["profile"])
+    if not identity:
+        identity = request.identity
+
+    if __package__:
+        from .ai_service import AIConfigurationError, generate_reply
+    else:
+        from ai_service import AIConfigurationError, generate_reply
+
+    email_content = f"Subject: {request.subject.strip()}\n\n{request.email_body.strip()}"
+    try:
+        reply = generate_reply(
+            email_content,
+            identity,
+            request.mode,
+            request.additional_direction.strip(),
+        )
+    except AIConfigurationError as error:
+        raise HTTPException(
+            status_code=503,
+            detail="AI replies are not configured. Add OPENAI_API_KEY to backend/.env.",
+        ) from error
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    except Exception as error:
+        raise HTTPException(
+            status_code=502,
+            detail="OpenAI could not generate a reply. Check the backend configuration and try again.",
+        ) from error
+
+    return {"reply": reply}
 
 
 if __name__ == "__main__":
