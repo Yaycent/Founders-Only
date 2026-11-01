@@ -5,7 +5,6 @@ import AuthPage from './pages/AuthPage.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import ExecutiveIdentity from './pages/ExecutiveIdentity.jsx';
 import IntelligentInbox from './pages/IntelligentInbox.jsx';
-import AIReplyStudio from './pages/AIReplyStudio.jsx';
 import DailyBriefing from './pages/DailyBriefing.jsx';
 import Settings from './pages/Settings.jsx';
 import Sidebar from './components/Sidebar.jsx';
@@ -133,7 +132,6 @@ function Workspace({ user, account, onAccountChange, onLogout }) {
             <Route path="/" element={<Dashboard profile={profile} onSelectEmail={setSelectedEmail} />} />
             <Route path="/identity" element={<ExecutiveIdentity profile={profile} onSave={saveProfile} />} />
             <Route path="/inbox" element={<IntelligentInbox selectedEmail={selectedEmail} onSelectEmail={setSelectedEmail} />} />
-            <Route path="/studio" element={<AIReplyStudio selectedEmail={selectedEmail} onSelectEmail={setSelectedEmail} onToast={showToast} />} />
             <Route path="/briefing" element={<DailyBriefing preferences={preferences} onChange={savePreferences} onToast={showToast} />} />
             <Route path="/settings" element={<Settings profile={profile} preferences={preferences} onSaveProfile={saveProfile} onChangePreferences={savePreferences} onToast={showToast} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
