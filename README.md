@@ -5,10 +5,30 @@ and Agentboxd inbox access. Start from `frontend/`; the root `src/` is a legacy 
 
 ## macOS
 
-```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install -r backend/requirements.txt
-cp backend/.env.example backend/.env
+- Node.js 20.19+ or 22.12+
+- Python 3.10+
+
+## First-time setup (Windows PowerShell)
+
+From the repository root:
+
+```powershell
+py -m venv .venv
+.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
+Copy-Item backend\.env.example backend\.env
+```
+
+Open `backend\.env` and replace `JWT_SECRET` with a private random value of at
+least 32 characters. Keep that file local; it is ignored by Git.
+
+Add `OPENAI_API_KEY` to enable AI features. Add both `AGENTBOXD_API_KEY` and
+`AGENTBOXD_INBOX_ID` to enable inbox polling and automatic replies. The worker
+automatically replies to newly received messages while Agentboxd credentials
+are configured, so use a test inbox when evaluating it.
+
+Install the frontend dependencies:
+
+```powershell
 cd frontend
 npm ci
 ```

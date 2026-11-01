@@ -114,8 +114,8 @@ export default function IntelligentInbox({ selectedEmail, onSelectEmail, onToast
       <NavLink className="button button-gold" to="/studio">Draft a reply in AI Studio</NavLink>
       {/* 顶部专属 Agentboxd 邮箱横幅（路演评委互动核心） */}
       <div style={{
-        background: 'rgba(255, 215, 0, 0.04)',
-        border: '1px solid rgba(255, 215, 0, 0.25)',
+        background: 'rgba(189, 155, 92, 0.04)',
+        border: '1px solid rgba(189, 155, 92, 0.25)',
         borderRadius: '8px',
         padding: '1rem 1.5rem',
         marginBottom: '1.5rem',
@@ -130,11 +130,11 @@ export default function IntelligentInbox({ selectedEmail, onSelectEmail, onToast
             width: '10px',
             height: '10px',
             borderRadius: '50%',
-            background: '#22c55e',
-            boxShadow: '0 0 10px #22c55e'
+            background: 'var(--gold)',
+            boxShadow: '0 0 10px var(--gold)'
           }} />
           <div>
-            <b style={{ color: '#fef08a', fontSize: '0.95rem', letterSpacing: '0.05em' }}>
+            <b style={{ color: 'var(--gold-bright)', fontSize: '0.95rem', letterSpacing: '0.05em' }}>
               AGENTBOXD LISTENER ACTIVE:
             </b>
             <span style={{ marginLeft: '8px', color: '#fff', fontFamily: 'monospace', fontSize: '1rem' }}>
@@ -162,7 +162,7 @@ export default function IntelligentInbox({ selectedEmail, onSelectEmail, onToast
             fontSize: '0.85rem'
           }}
         >
-          {copied ? <Check size={14} color="#4ade80" /> : <Copy size={14} />}
+          {copied ? <Check size={14} color="var(--gold-bright)" /> : <Copy size={14} />}
           {copied ? 'Copied' : 'Copy Inbound Email'}
         </button>
       </div>
@@ -255,8 +255,8 @@ export default function IntelligentInbox({ selectedEmail, onSelectEmail, onToast
           </div>
 
           <div className="eyebrow" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ color: '#ef4444' }}>INBOUND REJECTION</span> ➔
-            <span style={{ color: '#22c55e' }}>REPLY STATUS</span>
+            <span style={{ color: '#ef4444' }}>INBOUND REJECTION</span> ➔ 
+            <span style={{ color: 'var(--gold-bright)' }}>DISPATCH OVERRULED</span>
           </div>
 
           <h2>{active?.subject}</h2>
@@ -286,21 +286,21 @@ export default function IntelligentInbox({ selectedEmail, onSelectEmail, onToast
 
           {/* AI 自动反向裁决/回信战报卡片 */}
           <div style={{
-            background: 'rgba(34, 197, 94, 0.05)',
-            border: '1px solid rgba(34, 197, 94, 0.3)',
+            background: 'rgba(189, 155, 92, 0.045)',
+            border: '1px solid rgba(189, 155, 92, 0.3)',
             borderRadius: '8px',
             padding: '1.25rem',
             marginTop: '1rem'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <ShieldCheck size={18} color="#22c55e" />
-                <b style={{ color: '#4ade80', fontSize: '0.9rem', letterSpacing: '0.05em' }}>
-                  CORRESPONDENCE PREVIEW
+                <ShieldCheck size={18} color="var(--gold-bright)" />
+                <b style={{ color: 'var(--gold-bright)', fontSize: '0.9rem', letterSpacing: '0.05em' }}>
+                  DECISION OVERRULED / AUTONOMOUS DISPATCH
                 </b>
               </div>
-              <span style={{ fontSize: '0.75rem', background: 'rgba(34, 197, 94, 0.15)', color: '#4ade80', padding: '2px 8px', borderRadius: '4px', fontFamily: 'monospace' }}>
-                {active?.id?.startsWith('demo-') ? 'SAMPLE REPLY' : 'INBOUND MESSAGE'}
+              <span style={{ fontSize: '0.75rem', background: 'rgba(189, 155, 92, 0.12)', color: 'var(--gold-bright)', padding: '2px 8px', borderRadius: '4px', fontFamily: 'monospace' }}>
+                SENT VIA AGENTBOXD
               </span>
             </div>
 

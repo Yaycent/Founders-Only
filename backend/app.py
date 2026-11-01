@@ -6,6 +6,9 @@ import json
 import os
 import re
 import sqlite3
+import sys
+import threading
+import time
 import uuid
 from contextlib import contextmanager, asynccontextmanager
 from datetime import datetime, timedelta, timezone
@@ -19,9 +22,26 @@ from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.responses import JSONResponse
 
+# 引入 Agentboxd 与 AI 服务能力
+from agentboxd import AgentboxdConfigurationError, get_config, get_emails, reply_to_email
+try:
+    from agentboxd import send_email
+except ImportError:
+    send_email = None
+
+from ai_service import generate_reply
+try:
+    from ai_service import generate_schedule
+except ImportError:
+    generate_schedule = None
+
 
 BACKEND_DIR = Path(__file__).resolve().parent
 ROOT_DIR = BACKEND_DIR.parent
+
+for stream in (sys.stdout, sys.stderr):
+    if hasattr(stream, "reconfigure"):
+        stream.reconfigure(encoding="utf-8", errors="replace")
 
 
 def load_backend_env() -> None:
@@ -194,6 +214,17 @@ async def handle_validation_error(_request: Request, _error: RequestValidationEr
 def health():
     return {"status": "ok", "database": "sqlite", "persistent": True}
 
+@app.get("/api/messages/inbox")
+def inbox_messages(user_id: str = Depends(current_user_id)):
+    try:
+        return get_emails()
+    except AgentboxdConfigurationError as error:
+        raise HTTPException(
+            status_code=503,
+            detail="Agentboxd is not configured. Add its credentials to backend/.env.",
+        ) from error
+    except Exception as error:
+        raise HTTPException(status_code=502, detail="Could not load the Agentboxd inbox.") from error
 
 @app.post("/api/auth/register", status_code=201)
 def register(credentials: Credentials, response: Response):
@@ -467,5 +498,4 @@ briefing_service = install_briefing_routes(app, database_connection, current_use
 
 
 if __name__ == "__main__":
-    start_auto_reply_worker()
     uvicorn.run(app, host="127.0.0.1", port=int(os.environ.get("PORT", "4000")))
