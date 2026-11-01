@@ -7,7 +7,7 @@ import os
 import re
 import sqlite3
 import uuid
-from contextlib import contextmanager
+from contextlib import contextmanager, asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -90,7 +90,18 @@ def initialize_database() -> None:
 
 
 initialize_database()
-app = FastAPI(title="Founders-Only API", docs_url=None, redoc_url=None)
+
+
+@asynccontextmanager
+async def application_lifespan(app):
+    briefing_service.start()
+    try:
+        yield
+    finally:
+        briefing_service.stop()
+
+
+app = FastAPI(title="Founders-Only API", docs_url=None, redoc_url=None, lifespan=application_lifespan)
 
 
 class Credentials(BaseModel):
@@ -278,6 +289,16 @@ def update_account(update: AccountUpdate, user_id: str = Depends(current_user_id
     if update.profile is not None:
         fields["profile"] = json.dumps(update.profile, ensure_ascii=False)
     if update.preferences is not None:
+        try:
+            if __package__:
+                from .briefing_models import BriefingSettings
+            else:
+                from briefing_models import BriefingSettings
+            BriefingSettings.model_validate(update.preferences)
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail="Invalid briefing time, timezone or preferences.") from error
+        if update.preferences.get("briefing"):
+            require_agentboxd_owner(user_id)
         fields["preferences"] = json.dumps(update.preferences, ensure_ascii=False)
     if not fields:
         raise HTTPException(status_code=400, detail="Provide profile or preferences to update.")
@@ -436,6 +457,13 @@ def start_auto_reply_worker():
     import threading
     from auto_reply_worker import run_auto_reply_loop
     threading.Thread(target=run_auto_reply_loop, daemon=True).start()
+
+
+if __package__:
+    from .briefing_api import install_briefing_routes
+else:
+    from briefing_api import install_briefing_routes
+briefing_service = install_briefing_routes(app, database_connection, current_user_id)
 
 
 if __name__ == "__main__":
