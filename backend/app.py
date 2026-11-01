@@ -8,6 +8,7 @@ import json
 import os
 import re
 import sqlite3
+import sys
 import threading
 import time
 import uuid
@@ -25,7 +26,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from starlette.responses import JSONResponse
 
 # 引入 Agentboxd 与 AI 服务能力
-from agentboxd import get_emails, reply_to_email
+from agentboxd import AgentboxdConfigurationError, get_config, get_emails, reply_to_email
 try:
     from agentboxd import send_email
 except ImportError:
@@ -40,6 +41,10 @@ except ImportError:
 
 BACKEND_DIR = Path(__file__).resolve().parent
 ROOT_DIR = BACKEND_DIR.parent
+
+for stream in (sys.stdout, sys.stderr):
+    if hasattr(stream, "reconfigure"):
+        stream.reconfigure(encoding="utf-8", errors="replace")
 
 
 def load_backend_env() -> None:
@@ -268,6 +273,18 @@ def send_larp_schedule(req: ScheduleDispatch):
 @app.get("/api/health")
 def health():
     return {"status": "ok", "database": "sqlite", "persistent": True}
+
+@app.get("/api/messages/inbox")
+def inbox_messages(user_id: str = Depends(current_user_id)):
+    try:
+        return get_emails()
+    except AgentboxdConfigurationError as error:
+        raise HTTPException(
+            status_code=503,
+            detail="Agentboxd is not configured. Add its credentials to backend/.env.",
+        ) from error
+    except Exception as error:
+        raise HTTPException(status_code=502, detail="Could not load the Agentboxd inbox.") from error
 
 @app.post("/api/auth/register", status_code=201)
 def register(credentials: Credentials, response: Response):

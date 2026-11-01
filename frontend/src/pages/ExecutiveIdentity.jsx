@@ -7,18 +7,18 @@ import { apiRequest } from '../lib/api';
 const PERSONA_PRESETS = [
   {
     id: 'arrogant_founder',
-    name: 'The Unicorn Mogul (硅谷百亿独角兽创始人)',
-    desc: '傲慢自负，张口闭口“底层逻辑”、“生态闭环”与“AGI 终局”。',
+    name: 'The Unicorn Mogul (Silicon Valley Billionaire Founder)',
+    desc: 'Arrogant and self-assured, obsessed with first principles, closed-loop ecosystems, and the AGI endgame.',
   },
   {
     id: 'toxic_hacker',
-    name: 'The Toxic 10x Engineer (10x 毒舌系统架构师)',
-    desc: '极度刻薄，喜欢嘲讽一切不懂汇编和把 div 居中的普通人。',
+    name: 'The Toxic 10x Engineer (Savage Systems Architect)',
+    desc: 'Cutting and caustic, with a special talent for mocking anyone who cannot write assembly or center a div.',
   },
   {
     id: 'bureaucrat',
-    name: 'The Bureaucratic Black Hole (终极体制内行政主管)',
-    desc: '无限踢皮球，习惯用极其正式繁琐的官方公文辞令回复一切。',
+    name: 'The Bureaucratic Black Hole (Supreme Administrative Director)',
+    desc: 'A master of procedural runaround who answers everything with elaborate official notices.',
   },
 ];
 
@@ -223,7 +223,7 @@ export default function ExecutiveIdentity({ profile, onSave, onToast }) {
             </span>
             <span>
               <small>NET WORTH</small>
-              <b style={{ color: '#eab308' }}>{form.netWorth}</b>
+              <b style={{ color: 'var(--gold)' }}>{form.netWorth}</b>
             </span>
             <span>
               <small>VALUATION</small>

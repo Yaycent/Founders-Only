@@ -22,6 +22,11 @@ Copy-Item backend\.env.example backend\.env
 Open `backend\.env` and replace `JWT_SECRET` with a private random value of at
 least 32 characters. Keep that file local; it is ignored by Git.
 
+Add `OPENAI_API_KEY` to enable AI features. Add both `AGENTBOXD_API_KEY` and
+`AGENTBOXD_INBOX_ID` to enable inbox polling and automatic replies. The worker
+automatically replies to newly received messages while Agentboxd credentials
+are configured, so use a test inbox when evaluating it.
+
 Install the frontend dependencies:
 
 ```powershell
