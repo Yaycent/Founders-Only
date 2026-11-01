@@ -1,0 +1,42 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap');
+
+:root {
+  font-family: 'DM Sans', sans-serif;
+  color: #ede9e0;
+  background: #11110f;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --bg: #11110f;
+  --panel: #191816;
+  --panel-raised: #201e1a;
+  --border: #302e29;
+  --gold: #c6a66b;
+  --ivory: #f5f1e8;
+  --muted: #92908a;
+  --serif: 'Playfair Display', Georgia, serif;
+}
+
+* { box-sizing: border-box; }
+body { min-width: 320px; margin: 0; font-size: 13px; }
+button, input, textarea, select { font: inherit; }
+button { color: inherit; cursor: pointer; }
+a { color: inherit; text-decoration: none; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.eyebrow { color: #928b7c; font-size: 9px; font-weight: 600; letter-spacing: 1.6px; }
+.button { display: inline-flex; min-height: 38px; align-items: center; justify-content: center; gap: 8px; border: 1px solid transparent; padding: 0 15px; font-size: 10px; font-weight: 600; letter-spacing: .35px; transition: background .18s, border-color .18s, color .18s; }
+.button-gold { color: #171511; background: var(--gold); }
+.button-gold:hover { background: #d7bd8e; }
+.button-outline { color: #dac69e; border-color: #514a3c; background: transparent; }
+.button-outline:hover { background: #28251f; }
+.panel { border: 1px solid var(--border); background: var(--panel); }
+.panel-heading { display: flex; align-items: center; justify-content: space-between; }
+.panel-heading h3 { margin: 0 0 5px; font: 400 17px var(--serif); }
+.panel-heading span, .panel-heading small { color: #827e75; font-size: 10px; }
+.gold-icon { color: var(--gold); }
+.section-heading { display: flex; align-items: end; justify-content: space-between; margin: 36px 0 16px; }
+.section-heading h2 { margin: 6px 0 0; font: 400 24px var(--serif); }
+.section-heading.compact { margin: 0 0 14px; }
+.section-heading.compact h2 { font-size: 22px; }
+.text-link, .subtle-link { display: inline-flex; align-items: center; gap: 8px; color: #c5a76e; font-size: 10px; }
+.text-link:hover, .subtle-link:hover { color: #e8d4a9; }
+.empty-state { padding: 28px; color: #817d75; text-align: center; }
