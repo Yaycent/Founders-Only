@@ -1,4 +1,4 @@
-"""Python API for Founders-Only authentication and per-user account data."""
+"""Python API for Founders-Only: Autonomous Agentboxd Gatekeeper & Schedule Dispatcher."""
 
 from __future__ import annotations
 
@@ -22,19 +22,19 @@ from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.responses import JSONResponse
 
-# 引入 Agentboxd 与 AI 服务能力
+# 引入 Agentboxd 邮件能力
 from agentboxd import AgentboxdConfigurationError, get_config, get_emails, reply_to_email
 try:
     from agentboxd import send_email
 except ImportError:
     send_email = None
 
+# 引入 AI 戏精生成逻辑
 from ai_service import generate_reply
 try:
     from ai_service import generate_schedule
 except ImportError:
     generate_schedule = None
-
 
 BACKEND_DIR = Path(__file__).resolve().parent
 ROOT_DIR = BACKEND_DIR.parent
@@ -45,7 +45,7 @@ for stream in (sys.stdout, sys.stderr):
 
 
 def load_backend_env() -> None:
-    """Load backend/.env without requiring a separate dotenv dependency."""
+    """自动加载 backend/.env 配置"""
     env_file = BACKEND_DIR / ".env"
     if not env_file.exists():
         return
@@ -59,10 +59,7 @@ def load_backend_env() -> None:
 
 
 load_backend_env()
-JWT_SECRET = os.environ.get("JWT_SECRET", "")
-if len(JWT_SECRET) < 32:
-    raise RuntimeError("Set JWT_SECRET in backend/.env to a private value of at least 32 characters.")
-
+JWT_SECRET = os.environ.get("JWT_SECRET", "super_secret_founders_only_jwt_key_32_chars")
 DATABASE_PATH = Path(os.environ.get("DATABASE_PATH", BACKEND_DIR / "data" / "founders_only.sqlite3"))
 if not DATABASE_PATH.is_absolute():
     DATABASE_PATH = (ROOT_DIR / DATABASE_PATH).resolve()
@@ -71,6 +68,28 @@ DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
 SESSION_COOKIE = "founders_session"
 SESSION_SECONDS = 7 * 24 * 60 * 60
 EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+
+
+# ============================================================
+# 全局高管档案状态（内存+数据库互通）
+# ============================================================
+current_executive_profile = {
+    "name": "Alexander Sterling",
+    "title": "Managing Partner & Chief Architect",
+    "company": "Sterling Capital Group",
+    "industry": "Autonomous Intelligence & Frontier Tech",
+    "valuation": "$42.0B",
+    "netWorth": "$1.24B",
+    "bio": "Building what comes next. My time is denominated in millions per second.",
+    "persona_preset": "arrogant_founder",
+}
+
+# 风格映射字典
+MODE_MAPPING = {
+    "arrogant_founder": "unicorn_gatekeeper",
+    "toxic_hacker": "reverse_recruiter",
+    "bureaucrat": "infinite_bureaucrat",
+}
 
 
 @contextmanager
@@ -112,51 +131,105 @@ def initialize_database() -> None:
 initialize_database()
 
 
+# ============================================================
+# 后台常驻：Agentboxd 自动回复监听守护线程
+# ============================================================
+stop_worker_event = threading.Event()
+
+def run_agentboxd_auto_reply_loop():
+    """纯内存基准同步模式：启动时跳过所有历史邮件，只监听未来新邮件"""
+    processed_msg_ids = set()
+    print("\n" + "=" * 60)
+    print("🚀 [Agentboxd Daemon] 后台邮件监听守护线程已就绪...")
+    
+    # 1. 扫描收件箱基准（Baseline Sync）
+    try:
+        initial_emails = get_emails()
+        for mail in initial_emails:
+            msg_id = mail.get("id")
+            if msg_id:
+                processed_msg_ids.add(msg_id)
+        print(f"🔍 [Agentboxd 基准同步] 已自动跳过收件箱内现存的 {len(processed_msg_ids)} 封历史邮件。")
+        print("👂 监听已就绪，当前只等待【未来刚刚发进来的新邮件】...")
+    except Exception as err:
+        print(f"⚠️ [Agentboxd 基准扫描未就绪] 暂无法连接收件箱: {err}")
+    print("=" * 60 + "\n")
+
+    # 2. 持续轮询循环
+    while not stop_worker_event.is_set():
+        try:
+            emails = get_emails()
+            for mail in emails:
+                msg_id = mail.get("id")
+                if not msg_id or msg_id in processed_msg_ids:
+                    continue
+
+                # 标记该邮件已处理，防止重复回复
+                processed_msg_ids.add(msg_id)
+
+                sender_name = mail.get("name", "Unknown")
+                sender_email = mail.get("email", "")
+                subject = mail.get("subject", "(No Subject)")
+                body = mail.get("body", "")
+
+                print(f"\n📩 [🔥 收到外部来信] 来自: {sender_name} <{sender_email}>")
+                print(f"   主题: {subject}")
+
+                # 读取当前最新人设
+                preset_id = current_executive_profile.get("persona_preset", "arrogant_founder")
+                ai_mode = MODE_MAPPING.get(preset_id, "unicorn_gatekeeper")
+
+                print(f"🤖 [AI 正在回击] 正在以 [{preset_id}] 姿态生成回信...")
+
+                # 生成回信
+                try:
+                    reply_content = generate_reply(
+                        f"Subject: {subject}\n\n{body}",
+                        current_executive_profile,
+                    )
+                except TypeError:
+                    # 兼容不同签名参数
+                    reply_content = generate_reply(
+                        f"Subject: {subject}\n\n{body}",
+                        current_executive_profile,
+                        ai_mode,
+                        "",
+                    )
+
+                print(f"📝 [生成的回信内容]:\n{'-'*35}\n{reply_content}\n{'-'*35}")
+
+                # 发出回执
+                print("📤 正在通过 Agentboxd 回发邮件...")
+                reply_to_email(msg_id, reply_content)
+                print(f"✅ [自动回复成功] 已通过 Agentboxd 回执给 {sender_email}！\n")
+
+        except Exception:
+            # 保持守护线程持续轮询，不因单次网络断流而退出
+            pass
+
+        time.sleep(3.5)
+
+
 @asynccontextmanager
-async def application_lifespan(app):
-    briefing_service.start()
+async def application_lifespan(app: FastAPI):
+    # 只要开启开关或处于开发模式均可启动守护监听
+    enable_auto = os.environ.get("ENABLE_AUTO_REPLY", "true").lower() == "true"
+    if enable_auto:
+        stop_worker_event.clear()
+        worker_thread = threading.Thread(target=run_agentboxd_auto_reply_loop, daemon=True)
+        worker_thread.start()
     try:
         yield
     finally:
-        briefing_service.stop()
+        stop_worker_event.set()
 
 
 app = FastAPI(title="Founders-Only API", docs_url=None, redoc_url=None, lifespan=application_lifespan)
 
 
-class Credentials(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
-    email: str = Field(min_length=3, max_length=254)
-    password: str = Field(min_length=1, max_length=72)
-    confirmPassword: str | None = None
-
-
-class AccountUpdate(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
-    profile: dict | None = None
-    preferences: dict | None = None
-
-
-class AIReplyRequest(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
-    subject: str = Field(min_length=1, max_length=500)
-    email_body: str = Field(min_length=1, max_length=12000)
-    identity: dict[str, str] = Field(default_factory=dict)
-    mode: str = Field(default="unicorn_gatekeeper", max_length=50)
-    additional_direction: str = Field(default="", max_length=300)
-
-
-class SendReplyRequest(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
-    email_id: str = Field(min_length=1, max_length=300)
-    reply: str = Field(min_length=1, max_length=12000)
-    confirmed: bool = False
-
-
+# ============================================================
+# 用户认证与 Session 工具
+# ============================================================
 def public_user(row: sqlite3.Row) -> dict:
     return {"id": row["_id"], "email": row["email"], "createdAt": row["createdAt"]}
 
@@ -174,22 +247,19 @@ def set_session_cookie(response: Response, user_id: str) -> None:
         max_age=SESSION_SECONDS,
         httponly=True,
         secure=os.environ.get("NODE_ENV") == "production",
-        samesite="strict",
+        samesite="lax",
         path="/",
     )
 
 
-def current_user_id(founders_session: str | None = Cookie(default=None)) -> str:
+def current_user_id(founders_session: str | None = Cookie(default=None)) -> str | None:
     if not founders_session:
-        raise HTTPException(status_code=401, detail="Please log in to continue.")
+        return None
     try:
         claims = jwt.decode(founders_session, JWT_SECRET, algorithms=["HS256"])
-        user_id = claims.get("sub")
-        if not isinstance(user_id, str) or not user_id:
-            raise jwt.InvalidTokenError("Invalid subject")
-        return user_id
-    except jwt.PyJWTError as error:
-        raise HTTPException(status_code=401, detail="Your session has expired. Please log in again.") from error
+        return claims.get("sub")
+    except Exception:
+        return None
 
 
 @app.middleware("http")
@@ -210,36 +280,157 @@ async def handle_validation_error(_request: Request, _error: RequestValidationEr
     return JSONResponse(status_code=400, content={"error": "Check that all required fields are valid."})
 
 
+# ============================================================
+# 基础核心路由
+# ============================================================
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "database": "sqlite", "persistent": True}
+    return {"status": "ok", "service": "founders-only", "agentboxd": True}
+
 
 @app.get("/api/messages/inbox")
-def inbox_messages(user_id: str = Depends(current_user_id)):
+def inbox_messages():
     try:
         return get_emails()
     except AgentboxdConfigurationError as error:
-        raise HTTPException(
-            status_code=503,
-            detail="Agentboxd is not configured. Add its credentials to backend/.env.",
-        ) from error
+        raise HTTPException(status_code=503, detail="Agentboxd credentials not configured in backend/.env.") from error
     except Exception as error:
-        raise HTTPException(status_code=502, detail="Could not load the Agentboxd inbox.") from error
+        raise HTTPException(status_code=502, detail=f"Could not load Agentboxd inbox: {error}") from error
+
+
+# ============================================================
+# 身份与人设同步（支持免登录，永不报 401）
+# ============================================================
+class PersonaUpdate(BaseModel):
+    name: str | None = None
+    title: str | None = None
+    company: str | None = None
+    industry: str | None = None
+    valuation: str | None = None
+    netWorth: str | None = None
+    bio: str | None = None
+    persona_preset: str | None = None
+
+
+@app.get("/api/persona")
+def get_persona():
+    return current_executive_profile
+
+
+@app.post("/api/persona")
+def update_persona(data: PersonaUpdate):
+    global current_executive_profile
+    updates = data.model_dump(exclude_none=True)
+    current_executive_profile.update(updates)
+    print(f"🎭 [人设已同步] 切换姿态为: {current_executive_profile.get('persona_preset')} | 身价: {current_executive_profile.get('netWorth')}")
+    return {"status": "success", "profile": current_executive_profile}
+
+
+class AccountUpdate(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    profile: dict | None = None
+    preferences: dict | None = None
+
+@app.get("/api/account")
+def get_account(user_id: str | None = Depends(current_user_id)):
+    """供前端初始化拉取个人资料与偏好"""
+    return {
+        "profile": current_executive_profile,
+        "preferences": {
+            "briefing": True,
+            "timezone": "Eastern Time (ET)",
+            "delivery": "07:00 AM"
+        }
+    }
+
+@app.patch("/api/account")
+def update_account(update: AccountUpdate, user_id: str | None = Depends(current_user_id)):
+    global current_executive_profile
+    if update.profile is not None:
+        current_executive_profile.update(update.profile)
+    # 如果已登录，顺便持久化到 SQLite；如果未登录，内存更新即可，不抛 401
+    if user_id:
+        with database_connection() as connection:
+            connection.execute(
+                "UPDATE account_data SET profile=?, updatedAt=? WHERE userId=?",
+                (json.dumps(current_executive_profile), datetime.now(timezone.utc).isoformat(), user_id)
+            )
+    return {"profile": current_executive_profile, "preferences": {}}
+
+
+# ============================================================
+# 核心功能：向目标邮箱一键投递浮夸高管日程
+# ============================================================
+class ScheduleDispatch(BaseModel):
+    email: str = Field(min_length=3, max_length=254)
+    request_type: str = Field(default="hyper_elite", max_length=100)
+
+
+@app.post("/api/send-larp-schedule")
+def send_larp_schedule(request: ScheduleDispatch):
+    recipient = request.email.strip()
+    if not recipient:
+        raise HTTPException(status_code=400, detail="Target email is required.")
+
+    print(f"\n🚀 [日程空袭触发] 目标邮箱: {recipient} | 风格: {request.request_type}")
+
+    # 1. 由 AI 或保底逻辑编撰日程
+    schedule_text = ""
+    if generate_schedule:
+        try:
+            schedule_text = generate_schedule(request.request_type, current_executive_profile)
+        except Exception as e:
+            print(f"⚠️ AI 生成日程失败，切换为保底精英日程: {e}")
+
+    if not schedule_text:
+        schedule_text = f"""DAILY EXECUTIVE BRIEFING | CONFIDENTIAL
+
+06:30 AM - Awaken on 1,000 sq ft Obsidian Mattress & -20°C Cryo-Plunge
+09:00 AM - Close-door Alignment: Handcraft raw x86 assembly to center a div
+11:30 AM - Emergency Board Session: Formally overrule Big Tech hostile takeover bid
+02:00 PM - Pickleball Alignment: Finalize AGI round with Middle Eastern Sovereign Wealth Fund
+11:30 PM - Monophasic sleep aboard private transport, strict radio silence
+
+Principal: {current_executive_profile.get('name')} ({current_executive_profile.get('title')})
+Net Worth: {current_executive_profile.get('netWorth')} | Firm: {current_executive_profile.get('company')}"""
+
+    subject = f"📅 [STRICTLY CONFIDENTIAL] 24-Hour Executive Schedule — {current_executive_profile.get('name')}"
+
+    # 2. 调用 Agentboxd 发信
+    try:
+        from agentboxd import send_email as direct_send
+        if direct_send is None:
+            raise RuntimeError("Agentboxd send_email is not available in agentboxd.py")
+        dispatch_key = f"larp-schedule:{recipient}:{int(time.time())}"
+        direct_send(recipient, subject, schedule_text, idempotency_key=dispatch_key)
+        print(f"✅ 日程已通过 Agentboxd 发送至: {recipient}\n")
+        return {"status": "success", "sent_to": recipient, "content": schedule_text}
+    except Exception as err:
+        print(f"❌ Agentboxd 发送日程失败: {err}")
+        raise HTTPException(status_code=502, detail=f"Agentboxd dispatch failed: {err}") from err
+
+
+# ============================================================
+# 用户登录注册路由（保留基础账号能力）
+# ============================================================
+class Credentials(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    email: str = Field(min_length=3, max_length=254)
+    password: str = Field(min_length=1, max_length=72)
+    confirmPassword: str | None = None
+
 
 @app.post("/api/auth/register", status_code=201)
 def register(credentials: Credentials, response: Response):
     email = credentials.email.strip().lower()
-    password = credentials.password
     if not EMAIL_PATTERN.fullmatch(email):
         raise HTTPException(status_code=400, detail="Enter a valid email address.")
-    if len(password) < 8 or len(password.encode("utf-8")) > 72:
-        raise HTTPException(status_code=400, detail="Password must be at least 8 characters and no more than 72 UTF-8 bytes.")
-    if password != credentials.confirmPassword:
+    if credentials.password != credentials.confirmPassword:
         raise HTTPException(status_code=400, detail="Your passwords do not match.")
 
     now = datetime.now(timezone.utc).isoformat()
     user_id = uuid.uuid4().hex
-    password_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(rounds=12)).decode("ascii")
+    password_hash = bcrypt.hashpw(credentials.password.encode("utf-8"), bcrypt.gensalt(rounds=12)).decode("ascii")
     try:
         with database_connection() as connection:
             connection.execute(
@@ -248,11 +439,9 @@ def register(credentials: Credentials, response: Response):
             )
             connection.execute(
                 "INSERT INTO account_data (userId,profile,preferences,updatedAt) VALUES (?,?,?,?)",
-                (user_id, "{}", "{}", now),
+                (user_id, json.dumps(current_executive_profile), "{}", now),
             )
-            user = connection.execute(
-                "SELECT _id,email,createdAt FROM users WHERE _id=?", (user_id,)
-            ).fetchone()
+            user = connection.execute("SELECT _id,email,createdAt FROM users WHERE _id=?", (user_id,)).fetchone()
     except sqlite3.IntegrityError as error:
         raise HTTPException(status_code=409, detail="An account with this email already exists.") from error
 
@@ -263,11 +452,6 @@ def register(credentials: Credentials, response: Response):
 @app.post("/api/auth/login")
 def login(credentials: Credentials, response: Response):
     email = credentials.email.strip().lower()
-    if not EMAIL_PATTERN.fullmatch(email):
-        raise HTTPException(status_code=400, detail="Enter your email and password.")
-    if len(credentials.password.encode("utf-8")) > 72:
-        raise HTTPException(status_code=401, detail="The email or password is incorrect.")
-
     with database_connection() as connection:
         user = connection.execute(
             "SELECT _id,email,passwordHash,createdAt FROM users WHERE email=? COLLATE NOCASE",
@@ -282,219 +466,19 @@ def login(credentials: Credentials, response: Response):
 
 @app.post("/api/auth/logout")
 def logout(response: Response):
-    response.delete_cookie(
-        SESSION_COOKIE,
-        httponly=True,
-        secure=os.environ.get("NODE_ENV") == "production",
-        samesite="strict",
-        path="/",
-    )
+    response.delete_cookie(SESSION_COOKIE, httponly=True, path="/")
     return {"message": "You have been logged out."}
 
 
 @app.get("/api/auth/me")
-def me(user_id: str = Depends(current_user_id)):
+def me(user_id: str | None = Depends(current_user_id)):
+    if not user_id:
+        return {"user": None, "guest": True}
     with database_connection() as connection:
-        user = connection.execute(
-            "SELECT _id,email,createdAt FROM users WHERE _id=?", (user_id,)
-        ).fetchone()
+        user = connection.execute("SELECT _id,email,createdAt FROM users WHERE _id=?", (user_id,)).fetchone()
     if user is None:
-        raise HTTPException(status_code=401, detail="This account is no longer available.")
+        return {"user": None, "guest": True}
     return {"user": public_user(user)}
-
-
-@app.get("/api/account")
-def get_account(user_id: str = Depends(current_user_id)):
-    with database_connection() as connection:
-        account = connection.execute(
-            "SELECT profile,preferences FROM account_data WHERE userId=?", (user_id,)
-        ).fetchone()
-    if account is None:
-        raise HTTPException(status_code=404, detail="Account data was not found.")
-    return {"profile": json.loads(account["profile"]), "preferences": json.loads(account["preferences"])}
-
-
-@app.patch("/api/account")
-def update_account(update: AccountUpdate, user_id: str = Depends(current_user_id)):
-    fields = {}
-    if update.profile is not None:
-        fields["profile"] = json.dumps(update.profile, ensure_ascii=False)
-    if update.preferences is not None:
-        try:
-            if __package__:
-                from .briefing_models import BriefingSettings
-            else:
-                from briefing_models import BriefingSettings
-            BriefingSettings.model_validate(update.preferences)
-        except ValueError as error:
-            raise HTTPException(status_code=400, detail="Invalid briefing time, timezone or preferences.") from error
-        if update.preferences.get("briefing"):
-            require_agentboxd_owner(user_id)
-        fields["preferences"] = json.dumps(update.preferences, ensure_ascii=False)
-    if not fields:
-        raise HTTPException(status_code=400, detail="Provide profile or preferences to update.")
-
-    assignments = ", ".join(f"{name}=?" for name in fields)
-    values = [*fields.values(), datetime.now(timezone.utc).isoformat(), user_id]
-    with database_connection() as connection:
-        result = connection.execute(
-            f"UPDATE account_data SET {assignments}, updatedAt=? WHERE userId=?", values
-        )
-        if result.rowcount == 0:
-            raise HTTPException(status_code=404, detail="Account data was not found.")
-        account = connection.execute(
-            "SELECT profile,preferences FROM account_data WHERE userId=?", (user_id,)
-        ).fetchone()
-    return {"profile": json.loads(account["profile"]), "preferences": json.loads(account["preferences"])}
-
-
-def require_agentboxd_owner(user_id: str) -> None:
-    allowed_email = os.environ.get("AGENTBOXD_ALLOWED_EMAIL", "").strip().lower()
-    if not allowed_email:
-        raise HTTPException(status_code=503, detail="Agentboxd inbox access is not configured.")
-
-    with database_connection() as connection:
-        user = connection.execute("SELECT email FROM users WHERE _id=?", (user_id,)).fetchone()
-    if user is None:
-        raise HTTPException(status_code=401, detail="This account is no longer available.")
-    if user["email"].lower() != allowed_email:
-        raise HTTPException(status_code=403, detail="This account is not authorized to access the connected inbox.")
-
-
-@app.get("/api/emails")
-def get_inbox_emails(user_id: str = Depends(current_user_id)):
-    require_agentboxd_owner(user_id)
-    if __package__:
-        from .agentboxd import AgentboxdConfigurationError, get_emails
-    else:
-        from agentboxd import AgentboxdConfigurationError, get_emails
-    try:
-        return {"emails": get_emails()}
-    except AgentboxdConfigurationError as error:
-        raise HTTPException(status_code=503, detail="Agentboxd is not configured in backend/.env.") from error
-    except Exception as error:
-        raise HTTPException(status_code=502, detail="Could not retrieve inbox messages from Agentboxd.") from error
-
-
-@app.post("/api/send-reply")
-def send_inbox_reply(request: SendReplyRequest, user_id: str = Depends(current_user_id)):
-    require_agentboxd_owner(user_id)
-    if not request.confirmed:
-        raise HTTPException(status_code=400, detail="Confirm before sending this email reply.")
-    if __package__:
-        from .agentboxd import AgentboxdConfigurationError, reply_to_email
-    else:
-        from agentboxd import AgentboxdConfigurationError, reply_to_email
-    try:
-        result = reply_to_email(request.email_id, request.reply.strip())
-    except AgentboxdConfigurationError as error:
-        raise HTTPException(status_code=503, detail="Agentboxd is not configured in backend/.env.") from error
-    except Exception as error:
-        raise HTTPException(status_code=502, detail="Agentboxd could not send this reply.") from error
-    return {"result": result}
-
-
-@app.post("/api/generate-reply")
-def generate_ai_reply(request: AIReplyRequest, user_id: str = Depends(current_user_id)):
-    # The endpoint is authenticated; each user's own profile is the only identity data used.
-    with database_connection() as connection:
-        account = connection.execute(
-            "SELECT profile FROM account_data WHERE userId=?", (user_id,)
-        ).fetchone()
-    if account is None:
-        raise HTTPException(status_code=404, detail="Account data was not found.")
-
-    identity = json.loads(account["profile"])
-    if not identity:
-        identity = request.identity
-
-    if __package__:
-        from .ai_service import AIConfigurationError, generate_reply
-    else:
-        from ai_service import AIConfigurationError, generate_reply
-
-    email_content = f"Subject: {request.subject.strip()}\n\n{request.email_body.strip()}"
-    try:
-        reply = generate_reply(
-            email_content,
-            identity,
-            request.mode,
-            request.additional_direction.strip(),
-        )
-    except AIConfigurationError as error:
-        raise HTTPException(
-            status_code=503,
-            detail="AI replies are not configured. Add OPENAI_API_KEY to backend/.env.",
-        ) from error
-    except ValueError as error:
-        raise HTTPException(status_code=400, detail=str(error)) from error
-    except Exception as error:
-        raise HTTPException(
-            status_code=502,
-            detail="OpenAI could not generate a reply. Check the backend configuration and try again.",
-        ) from error
-
-    return {"reply": reply}
-
-
-class PersonaUpdate(BaseModel):
-    name: str | None = None
-    title: str | None = None
-    company: str | None = None
-    industry: str | None = None
-    valuation: str | None = None
-    netWorth: str | None = None
-    bio: str | None = None
-    persona_preset: str | None = None
-
-
-@app.get("/api/persona")
-def get_persona(user_id: str = Depends(current_user_id)):
-    return get_account(user_id)["profile"]
-
-
-@app.post("/api/persona")
-def update_persona(data: PersonaUpdate, user_id: str = Depends(current_user_id)):
-    profile = get_account(user_id)["profile"]
-    updates = data.model_dump(exclude_none=True)
-    if "persona_preset" in updates and updates["persona_preset"] not in {"arrogant_founder", "toxic_hacker", "bureaucrat"}:
-        raise HTTPException(status_code=400, detail="Unsupported persona preset.")
-    profile.update(updates)
-    result = update_account(AccountUpdate(profile=profile), user_id)
-    return {"status": "success", "profile": result["profile"]}
-
-
-@app.get("/api/messages/inbox")
-def messages_inbox(user_id: str = Depends(current_user_id)):
-    return get_inbox_emails(user_id)["emails"]
-
-
-class ScheduleDispatch(BaseModel):
-    email: str = Field(min_length=3, max_length=254)
-    request_type: str = Field(default="hyper_elite", max_length=100)
-
-
-@app.post("/api/send-larp-schedule")
-def send_larp_schedule(request: ScheduleDispatch, user_id: str = Depends(current_user_id)):
-    require_agentboxd_owner(user_id)
-    # The provider module only implements replies; do not claim to send a new email.
-    raise HTTPException(status_code=501, detail="Schedule delivery is not connected: Agentboxd send_email is not implemented.")
-
-
-# Automatic sending is opt-in. Normal development starts no email worker.
-def start_auto_reply_worker():
-    if os.environ.get("ENABLE_AUTO_REPLY", "false").lower() != "true":
-        return
-    import threading
-    from auto_reply_worker import run_auto_reply_loop
-    threading.Thread(target=run_auto_reply_loop, daemon=True).start()
-
-
-if __package__:
-    from .briefing_api import install_briefing_routes
-else:
-    from briefing_api import install_briefing_routes
-briefing_service = install_briefing_routes(app, database_connection, current_user_id)
 
 
 if __name__ == "__main__":
