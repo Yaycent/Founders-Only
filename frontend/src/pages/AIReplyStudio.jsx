@@ -5,6 +5,10 @@ import { mockEmails } from '../data/emails.js';
 import { apiRequest } from '../lib/api.js';
 
 const styles = [
+  ['Saved executive persona', 'profile'],
+  ['The Unicorn Mogul', 'arrogant_founder'],
+  ['The Toxic 10x Architect', 'toxic_hacker'],
+  ['The Bureaucratic Black Hole', 'bureaucrat'],
   ['The Billionaire', 'unicorn_gatekeeper'],
   ['The Ruthless CEO', 'reverse_recruiter'],
   ['The Diplomat', 'professional'],
@@ -25,7 +29,7 @@ const actions = [
 ];
 
 export default function AIReplyStudio({ emails = [], selectedEmail, onSelectEmail, onSendReply, onToast, profile }) {
-  const [style, setStyle] = useState('The Diplomat');
+  const [style, setStyle] = useState('Saved executive persona');
   const [action, setAction] = useState('');
   const [reply, setReply] = useState('');
   const [generating, setGenerating] = useState(false);

@@ -385,5 +385,59 @@ def generate_ai_reply(request: AIReplyRequest, user_id: str = Depends(current_us
     return {"reply": reply}
 
 
+class PersonaUpdate(BaseModel):
+    name: str | None = None
+    title: str | None = None
+    company: str | None = None
+    industry: str | None = None
+    valuation: str | None = None
+    netWorth: str | None = None
+    bio: str | None = None
+    persona_preset: str | None = None
+
+
+@app.get("/api/persona")
+def get_persona(user_id: str = Depends(current_user_id)):
+    return get_account(user_id)["profile"]
+
+
+@app.post("/api/persona")
+def update_persona(data: PersonaUpdate, user_id: str = Depends(current_user_id)):
+    profile = get_account(user_id)["profile"]
+    updates = data.model_dump(exclude_none=True)
+    if "persona_preset" in updates and updates["persona_preset"] not in {"arrogant_founder", "toxic_hacker", "bureaucrat"}:
+        raise HTTPException(status_code=400, detail="Unsupported persona preset.")
+    profile.update(updates)
+    result = update_account(AccountUpdate(profile=profile), user_id)
+    return {"status": "success", "profile": result["profile"]}
+
+
+@app.get("/api/messages/inbox")
+def messages_inbox(user_id: str = Depends(current_user_id)):
+    return get_inbox_emails(user_id)["emails"]
+
+
+class ScheduleDispatch(BaseModel):
+    email: str = Field(min_length=3, max_length=254)
+    request_type: str = Field(default="hyper_elite", max_length=100)
+
+
+@app.post("/api/send-larp-schedule")
+def send_larp_schedule(request: ScheduleDispatch, user_id: str = Depends(current_user_id)):
+    require_agentboxd_owner(user_id)
+    # The provider module only implements replies; do not claim to send a new email.
+    raise HTTPException(status_code=501, detail="Schedule delivery is not connected: Agentboxd send_email is not implemented.")
+
+
+# Automatic sending is opt-in. Normal development starts no email worker.
+def start_auto_reply_worker():
+    if os.environ.get("ENABLE_AUTO_REPLY", "false").lower() != "true":
+        return
+    import threading
+    from auto_reply_worker import run_auto_reply_loop
+    threading.Thread(target=run_auto_reply_loop, daemon=True).start()
+
+
 if __name__ == "__main__":
+    start_auto_reply_worker()
     uvicorn.run(app, host="127.0.0.1", port=int(os.environ.get("PORT", "4000")))

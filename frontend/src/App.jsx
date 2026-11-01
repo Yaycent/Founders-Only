@@ -23,7 +23,7 @@ export default function App() {
   const [account, setAccount] = useState({ profile: {}, preferences: {} });
   const [status, setStatus] = useState('loading');
   const [error, setError] = useState('');
-  const [emails, setEmails] = useState(mockEmails);
+  const [emails, setEmails] = useState([]);
   const [emailError, setEmailError] = useState('');
 
   async function loadEmails() {
@@ -77,7 +77,7 @@ export default function App() {
     } finally {
       setUser(null);
       setAccount({ profile: {}, preferences: {} });
-      setEmails(mockEmails);
+      setEmails([]);
       setEmailError('');
       setStatus('signed-out');
       window.location.assign('/login');
@@ -126,8 +126,10 @@ function Workspace({ user, account, emails, emailError, onEmailsChange, onAccoun
       setProfile(nextProfile);
       onAccountChange(updated);
       showToast('Executive profile saved');
+      return true;
     } catch (saveError) {
       showToast(saveError.message);
+      return false;
     }
   }
 
@@ -142,6 +144,10 @@ function Workspace({ user, account, emails, emailError, onEmailsChange, onAccoun
   }
 
   async function sendReply(emailId, reply) {
+    if (emailError || !emails.some((email) => email.id === emailId)) {
+      showToast("Connect a real inbox before sending.");
+      return false;
+    }
     try {
       await apiRequest('/api/send-reply', {
         method: 'POST',
@@ -164,9 +170,9 @@ function Workspace({ user, account, emails, emailError, onEmailsChange, onAccoun
         <div className="page-wrap">
           {emailError && <div className="email-connection-notice" role="status">{emailError} Showing sample correspondence instead.</div>}
           <Routes>
-            <Route path="/" element={<Dashboard profile={profile} emails={emails} onSelectEmail={setSelectedEmail} />} />
-            <Route path="/identity" element={<ExecutiveIdentity profile={profile} onSave={saveProfile} />} />
-            <Route path="/inbox" element={<IntelligentInbox emails={emails} selectedEmail={selectedEmail} onSelectEmail={setSelectedEmail} />} />
+            <Route path="/" element={<Dashboard profile={profile} onSaveProfile={saveProfile} emails={emails} onSelectEmail={setSelectedEmail} onToast={showToast} />} />
+            <Route path="/identity" element={<ExecutiveIdentity profile={profile} onSave={saveProfile} onToast={showToast} />} />
+            <Route path="/inbox" element={<IntelligentInbox emails={emails} selectedEmail={selectedEmail} onSelectEmail={setSelectedEmail} onToast={showToast} />} />
             <Route path="/studio" element={<AIReplyStudio emails={emails} selectedEmail={selectedEmail} onSelectEmail={setSelectedEmail} onSendReply={sendReply} onToast={showToast} profile={profile} />} />
             <Route path="/briefing" element={<DailyBriefing preferences={preferences} onChange={savePreferences} onToast={showToast} />} />
             <Route path="/settings" element={<Settings profile={profile} preferences={preferences} onSaveProfile={saveProfile} onChangePreferences={savePreferences} onToast={showToast} />} />
