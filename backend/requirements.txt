@@ -2,3 +2,5 @@ bcrypt==4.2.1
 fastapi==0.115.12
 PyJWT==2.10.1
 uvicorn==0.34.0
+openai==1.82.0
+requests==2.32.3

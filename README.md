@@ -22,6 +22,30 @@ Copy-Item backend\.env.example backend\.env
 Open `backend\.env` and replace `JWT_SECRET` with a private random value of at
 least 32 characters. Keep that file local; it is ignored by Git.
 
+To enable real AI reply generation, add your OpenAI credentials to
+`backend\.env`:
+
+```text
+OPENAI_API_KEY=your_private_key
+OPENAI_MODEL=gpt-4.1-mini
+```
+
+The key is read only by the Python backend. It is never sent to or bundled into
+the frontend. Without a key, signup and the rest of the dashboard still run;
+the Reply Studio shows a configuration error when generation is requested.
+
+To load and reply to real inbox messages, also configure these backend-only
+values in `backend\.env`:
+
+```text
+AGENTBOXD_API_KEY=your_private_agentboxd_key
+AGENTBOXD_INBOX_ID=your_inbox_id
+AGENTBOXD_ALLOWED_EMAIL=the_login_email_allowed_to_access_this_inbox
+```
+
+Inbox access and sending are protected by JWT and restricted to the configured
+login email. The Reply Studio asks for confirmation before sending a message.
+
 Install the frontend dependencies:
 
 ```powershell

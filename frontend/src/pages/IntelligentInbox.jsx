@@ -1,12 +1,15 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { Mail, Search, Sparkles, Star } from 'lucide-react';
-import { categories, mockEmails } from '../data/emails.js';
+import { categories } from '../data/emails.js';
 
-export default function IntelligentInbox({ selectedEmail, onSelectEmail }) {
+export default function IntelligentInbox({ emails: inboxEmails = [], selectedEmail, onSelectEmail }) {
   const [category, setCategory] = useState('All correspondence');
   const [query, setQuery] = useState('');
-  const [emails, setEmails] = useState(mockEmails);
+  const [emails, setEmails] = useState(inboxEmails);
+
+  useEffect(() => setEmails(inboxEmails), [inboxEmails]);
+
   const active = selectedEmail || emails[0];
 
   const filtered = useMemo(() => emails.filter((email) => {
@@ -16,6 +19,7 @@ export default function IntelligentInbox({ selectedEmail, onSelectEmail }) {
   }), [emails, category, query]);
 
   function toggle(email, field) {
+    if (!email) return;
     setEmails((current) => current.map((item) => item.id === email.id ? { ...item, [field]: !item[field] } : item));
     if (field === 'unread') onSelectEmail({ ...email, unread: !email.unread });
   }
@@ -31,11 +35,13 @@ export default function IntelligentInbox({ selectedEmail, onSelectEmail }) {
           {!filtered.length && <p className="empty-state">No correspondence found.</p>}
         </section>
         <article className="email-detail">
-          <div className="email-detail-actions"><button aria-label="Mark important" onClick={() => toggle(active, 'important')}><Star size={16} fill={active.important ? 'currentColor' : 'none'} /></button><button aria-label="Toggle read status" onClick={() => toggle(active, 'unread')}><Mail size={16} /></button></div>
-          <div className="eyebrow">{active.category.toUpperCase()}</div><h2>{active.subject}</h2>
-          <div className="sender-detail"><span className="sender-initial">{active.name.split(' ').map((part) => part[0]).join('')}</span><span><b>{active.name}</b><small>{active.email}</small></span><time>{active.date}</time></div>
-          <div className="email-body">{active.body.split('\n').map((line, index) => <p key={index}>{line || ' '}</p>)}</div>
-          <div className="email-reply-actions"><NavLink className="button button-gold" to="/studio"><Sparkles size={15} /> Reply with AI</NavLink><NavLink className="button button-outline" to="/studio">Reply</NavLink></div>
+          {active ? <>
+            <div className="email-detail-actions"><button aria-label="Mark important" onClick={() => toggle(active, 'important')}><Star size={16} fill={active.important ? 'currentColor' : 'none'} /></button><button aria-label="Toggle read status" onClick={() => toggle(active, 'unread')}><Mail size={16} /></button></div>
+            <div className="eyebrow">{active.category.toUpperCase()}</div><h2>{active.subject}</h2>
+            <div className="sender-detail"><span className="sender-initial">{active.name.split(' ').map((part) => part[0]).join('')}</span><span><b>{active.name}</b><small>{active.email}</small></span><time>{active.date}</time></div>
+            <div className="email-body">{active.body.split('\n').map((line, index) => <p key={index}>{line || ' '}</p>)}</div>
+            <div className="email-reply-actions"><NavLink className="button button-gold" to="/studio"><Sparkles size={15} /> Reply with AI</NavLink><NavLink className="button button-outline" to="/studio">Reply</NavLink></div>
+          </> : <p className="empty-state">No messages in this inbox.</p>}
         </article>
       </div>
     </>
